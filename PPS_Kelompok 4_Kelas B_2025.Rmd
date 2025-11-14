@@ -1,0 +1,212 @@
+---
+title: '**Komputasi Perhitungan TBP Stokastik**'
+author: "Tim 4 TBP Stokastik"
+date: "`r Sys.Date()`"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+<h1 style="text-align: center;">**TBP Stokastik Proses Poisson Non Homogen**</h1>
+
+<h2>**Anggota Kelompok:**</h2>
+
+<p style="text-align: justify;">
+1. Fayzul Haq Mahardika Basunjaya (M0723036)
+</p>
+
+<p style="text-align: justify;">
+2. Puput Artika Tri C. (M0723070)
+</p>
+
+<p style="text-align: justify;">
+3. Rifki Martleo Alfiansyah (M0723076)
+</p>
+
+<p style="text-align: justify;">
+4. Rizky Sungsang Wahyuningtyas (M0723078)
+</p>
+
+```{r library, message=FALSE, warning=FALSE}
+library(nortest)
+library(vcd)
+library(car)
+library(stats)
+library(knitr)
+```
+
+<h2>**Data**</h2>
+<p style="text-align: justify;">
+Data yang digunakan merupakan data primer yang diperoleh langsung melalui observasi pada grup WhatsApp StudentEXpress. Pengamatan dilakukan pada hari Senin, 16 Juni 2025, mulai pukul 06.00 hingga 24.00 WIB. Analisis data menggunakan analisis stokastik dengan metode distribusi poisson non homogen. Variabel yang diamati meliputi rentang waktu pemesanan pelanggan serta jumlah pelanggan.
+</p>
+
+```{r data}
+rentang_waktu <- c("06:00 - 07:00", "07:00 - 08:00", "08:00 - 09:00", "09:00 - 10:00",
+                   "10:00 - 11:00", "11:00 - 12:00", "12:00 - 13:00", "13:00 - 14:00",
+                   "14:00 - 15:00", "15:00 - 16:00", "16:00 - 17:00", "17:00 - 18:00",
+                   "18:00 - 19:00", "19:00 - 20:00", "20:00 - 21:00", "21:00 - 22:00",
+                   "22:00 - 23:00", "23:00 - 24:00")
+
+jumlah_kejadian <- c(2, 3, 3, 9, 6, 5, 13, 6, 8, 6, 6, 3, 5, 9, 2, 2, 2, 2)
+data <- data.frame(
+  Rentang_Waktu = rentang_waktu,
+  Jumlah_Kejadian = jumlah_kejadian,
+  stringsAsFactors = FALSE
+)
+```
+
+
+
+```{r data-table}
+knitr::kable(data, 
+             caption = "Data Jumlah Kejadian Pemesanan Pelanggan per Rentang Waktu", 
+             align = c("l", "c")
+             )
+```
+
+
+<h2>**Statistika Deskriptif**</h2>
+```{r desc}
+n <- length(data$Jumlah_Kejadian)
+mean_val <- mean(data$Jumlah_Kejadian)
+var_val <- var(data$Jumlah_Kejadian)
+sd_val <- sd(data$Jumlah_Kejadian)
+min_val <- min(data$Jumlah_Kejadian)
+max_val <- max(data$Jumlah_Kejadian)
+range_val <- max_val - min_val
+
+desc_stats <- data.frame(
+  Statistik = c("Rata-rata", "Median", "Standar Deviasi", "Minimum", "Maksimum"),
+  Nilai = c(
+    round(mean_val, 2),
+    median(data$Jumlah_Kejadian),
+    round(sd_val, 2),
+    min_val,
+    max_val
+  )
+)
+
+knitr::kable(desc_stats, 
+             caption = "Statistik Deskriptif Jumlah Kejadian Pemesanan", 
+             align = c("l", "c")
+             )
+```
+
+
+
+<h2>**Uji Asumsi Distribusi**</h2>
+
+```{r poisson}
+lambda_est <- mean_val
+
+cat("   KOLMOGOROV-SMIRNOV TEST\n")
+cat("   One-Sample Test\n")
+cat("   Test Distribution: Poisson\n")
+cat("   Parameters: lambda =", round(lambda_est, 4), "\n\n")
+
+ks_result <- ks.test(data$Jumlah_Kejadian, "ppois", lambda = lambda_est)
+cat("   Test Statistic (D)   :", round(ks_result$statistic, 4), "\n")
+cat("   Asymp. Sig. (2-tailed):", round(ks_result$p.value, 4), "\n")
+
+if(ks_result$p.value > 0.05) {
+  cat("   Decision: Do not reject H0\n")
+  cat("   Conclusion: Data is consistent with Poisson distribution\n\n")
+} else {
+  cat("   Decision: Reject H0\n")
+  cat("   Conclusion: Data does not follow Poisson distribution\n\n")
+}
+```
+
+
+<h2>**Plot Distribusi Data**</h2>
+
+```{r plot}
+par(mfrow = c(2, 2)) # Arrange plots in a 2x2 grid
+
+# 1. Histogram with Poisson PMF Overlay
+hist_data <- hist(data$Jumlah_Kejadian, breaks = seq(min(data$Jumlah_Kejadian) - 0.5, max(data$Jumlah_Kejadian) + 0.5, by = 1),
+                  main = "Histogram with Poisson PMF", xlab = "Jumlah Kejadian", ylab = "Frequency",
+                  col = "lightblue", border = "black")
+x_vals <- seq(min(data$Jumlah_Kejadian), max(data$Jumlah_Kejadian), by = 1)
+poisson_pmf <- dpois(x_vals, lambda = lambda_est) * length(data$Jumlah_Kejadian)
+lines(x_vals, poisson_pmf, type = "b", col = "red", lwd = 2, pch = 19)
+legend("topright", legend = c("Observed", "Poisson PMF"), col = c("lightblue", "red"), lwd = c(NA, 2), pch = c(NA, 19))
+
+# 2. ECDF vs Poisson CDF
+ecdf_data <- ecdf(data$Jumlah_Kejadian)
+plot(ecdf_data, main = "ECDF vs Poisson CDF", xlab = "Jumlah Kejadian", ylab = "Cumulative Probability",
+     col = "blue", lwd = 2)
+x_cdf <- seq(min(data$Jumlah_Kejadian), max(data$Jumlah_Kejadian), length.out = 100)
+poisson_cdf <- ppois(x_cdf, lambda = lambda_est)
+lines(x_cdf, poisson_cdf, col = "red", lwd = 2)
+legend("bottomright", legend = c("Empirical CDF", "Poisson CDF"), col = c("blue", "red"), lwd = 2)
+
+# 3. Q-Q Plot
+obs_quantiles <- sort(data$Jumlah_Kejadian)
+theoretical_quantiles <- qpois(ppoints(length(data$Jumlah_Kejadian)), lambda = lambda_est)
+plot(theoretical_quantiles, obs_quantiles, main = "Q-Q Plot for Poisson Distribution",
+     xlab = "Theoretical Quantiles (Poisson)", ylab = "Observed Quantiles",
+     pch = 19, col = "blue")
+abline(0, 1, col = "red", lwd = 2)
+legend("topleft", legend = c("Data Points", "Reference Line"), col = c("blue", "red"), pch = c(19, NA), lwd = c(NA, 2))
+
+# Reset plot layout
+par(mfrow = c(1, 1))
+```
+
+
+<h2>**Menghitung Lambda**</h2>
+```{r lambda}
+# Kelompokkan data menjadi 3 kelompok dengan 6 rentang waktu masing-masing
+kelompok_1 <- jumlah_kejadian[1:6]  # 06:00 - 12:00
+kelompok_2 <- jumlah_kejadian[7:12] # 12:00 - 18:00
+kelompok_3 <- jumlah_kejadian[13:18] # 18:00 - 24:00
+
+# Hitung total kejadian per kelompok
+total_kelompok_1 <- sum(kelompok_1)
+total_kelompok_2 <- sum(kelompok_2)
+total_kelompok_3 <- sum(kelompok_3)
+
+# Hitung lambda untuk setiap kelompok (total kejadian / 6 jam)
+lambda_1 <- total_kelompok_1 / 6
+lambda_2 <- total_kelompok_2 / 6
+lambda_3 <- total_kelompok_3 / 6
+
+# Buat tabel hasil
+lambda_table <- data.frame(
+  Kelompok = c("06:00 - 12:00", "12:00 - 18:00", "18:00 - 24:00"),
+  Total_Kejadian = c(total_kelompok_1, total_kelompok_2, total_kelompok_3),
+  Lambda = c(round(lambda_1, 2), round(lambda_2, 2), round(lambda_3, 2))
+)
+
+# Tampilkan tabel
+knitr::kable(lambda_table, 
+             caption = "Perhitungan Lambda untuk Setiap Kelompok", 
+             align = c("l", "c", "c")
+             )
+```
+
+
+<h2>**Menghitung m(t)**</h2>
+```{r mt}
+# Hitung m(t) untuk setiap kelompok
+lambda_1
+m_t_12 <- lambda_1 * 6  # Hingga 12:00 WIB
+m_t_18 <- m_t_12 + (lambda_2 * 6)  # Hingga 18:00 WIB
+m_t_24 <- m_t_18 + (lambda_3 * 6)  # Hingga 24:00 WIB
+
+# Buat tabel untuk ringkasan
+m_t_table <- data.frame(
+  Waktu = c("12:00 WIB", "18:00 WIB", "24:00 WIB"),
+  m_t = c(round(m_t_12, 2), round(m_t_18, 2), round(m_t_24, 2))
+)
+
+knitr::kable(m_t_table, 
+             caption = "Perhitungan m(t) untuk Proses Poisson Non-Homogen", 
+             align = c("l", "c")
+             )
+```
